@@ -17,25 +17,25 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Check workflow.json exists
+      - name: Check workflow file exists
         run: |
-          if [ ! -f workflow.json ]; then
-            echo "workflow.json is missing"
+          if [ ! -f "AI-Powered Recruitment Pipeline.json" ]; then
+            echo "AI-Powered Recruitment Pipeline.json is missing"
             exit 1
           fi
-          echo "workflow.json found"
+          echo "AI-Powered Recruitment Pipeline.json found"
 
-      - name: Validate workflow.json is valid JSON
+      - name: Validate workflow is valid JSON
         run: |
-          cat workflow.json | python3 -m json.tool > /dev/null
-          echo "workflow.json is valid JSON"
+          cat "AI-Powered Recruitment Pipeline.json" | python3 -m json.tool > /dev/null
+          echo "AI-Powered Recruitment Pipeline.json is valid JSON"
 
       - name: Check required fields exist in workflow
         run: |
-          python3 - <<'EOF'
+          python3 - <<'PYEOF'
           import json, sys
 
-          with open("workflow.json") as f:
+          with open("AI-Powered Recruitment Pipeline.json") as f:
               data = json.load(f)
 
           required = ["name", "nodes", "connections"]
@@ -47,7 +47,7 @@ jobs:
 
           print(f"All required fields present: {required}")
           print(f"Node count: {len(data['nodes'])}")
-          EOF
+          PYEOF
 
   lint-docs:
     name: Check docs are present
@@ -59,10 +59,9 @@ jobs:
 
       - name: Check required files exist
         run: |
-          files=("README.md" "SETUP.md" ".gitignore" "workflow.json")
           all_good=true
 
-          for f in "${files[@]}"; do
+          for f in "README.md" "SETUP.md" ".gitignore" "AI-Powered Recruitment Pipeline.json"; do
             if [ ! -f "$f" ]; then
               echo "Missing: $f"
               all_good=false
