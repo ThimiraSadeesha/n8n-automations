@@ -1,0 +1,264 @@
+{
+  "name": "HF Space Video Generator -> WhatsApp",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "generate-video",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "a1b2c3d4-0001-4000-8000-000000000001",
+      "name": "Video Request Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [-1200, 200],
+      "webhookId": "a1b2c3d4-webhook-0001"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.body.prompt }}",
+              "operation": "isNotEmpty"
+            },
+            {
+              "value1": "={{ $json.body.phone }}",
+              "operation": "isNotEmpty"
+            }
+          ]
+        }
+      },
+      "id": "a1b2c3d4-0002-4000-8000-000000000002",
+      "name": "Validate Request",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [-976, 200]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": {
+          "status": "error",
+          "message": "Missing required fields: prompt and phone are both required"
+        },
+        "options": {}
+      },
+      "id": "a1b2c3d4-0003-4000-8000-000000000003",
+      "name": "Invalid Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [-768, 400]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://YOUR-USERNAME-YOUR-SPACE.hf.space/gradio_api/call/predict",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"data\": [\"{{ $json.body.prompt }}\"]\n}",
+        "options": {}
+      },
+      "id": "a1b2c3d4-0004-4000-8000-000000000004",
+      "name": "Submit to HF Space",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-576, 112]
+    },
+    {
+      "parameters": {
+        "amount": 5,
+        "unit": "seconds"
+      },
+      "id": "a1b2c3d4-0005-4000-8000-000000000005",
+      "name": "Wait For Processing",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [-352, 112],
+      "webhookId": "a1b2c3d4-wait-0005"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://YOUR-USERNAME-YOUR-SPACE.hf.space/gradio_api/call/predict/{{ $json.event_id }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "text"
+            }
+          }
+        }
+      },
+      "id": "a1b2c3d4-0006-4000-8000-000000000006",
+      "name": "Get Video Result",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-128, 112]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Gradio's queue API streams Server-Sent Events like:\n// event: complete\n// data: [{\"video\": {\"path\": \"...\", \"url\": \"https://.../file=...\"}}]\n\nconst raw = $input.first().json.data;\nconst text = typeof raw === 'string' ? raw : JSON.stringify(raw);\n\nconst dataLines = text.split('\\n').filter(l => l.trim().startsWith('data:'));\nif (!dataLines.length) {\n  throw new Error('No data lines found in Gradio SSE response: ' + text);\n}\n\nconst lastLine = dataLines[dataLines.length - 1].replace('data:', '').trim();\nlet parsed;\ntry {\n  parsed = JSON.parse(lastLine);\n} catch (e) {\n  throw new Error('Could not parse Gradio result JSON: ' + lastLine);\n}\n\nconst videoOutput = Array.isArray(parsed)\n  ? parsed.find(item => item && (item.video || item.url || item.path))\n  : parsed;\n\nif (!videoOutput) {\n  throw new Error('No video object found in Gradio output: ' + JSON.stringify(parsed));\n}\n\nconst videoInfo = videoOutput.video || videoOutput;\nconst SPACE_BASE_URL = 'https://YOUR-USERNAME-YOUR-SPACE.hf.space';\nconst videoUrl = videoInfo.url\n  ? videoInfo.url\n  : (videoInfo.path ? `${SPACE_BASE_URL}/file=${videoInfo.path}` : null);\n\nif (!videoUrl) {\n  throw new Error('Could not resolve a public video URL from the Space response.');\n}\n\nconst webhookData = $('Video Request Webhook').first().json.body;\n\nreturn [{\n  json: {\n    videoUrl,\n    phone: webhookData.phone,\n    prompt: webhookData.prompt\n  }\n}];"
+      },
+      "id": "a1b2c3d4-0007-4000-8000-000000000007",
+      "name": "Extract Video URL",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [96, 112]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.twilio.com/2010-04-01/Accounts/YOUR_TWILIO_ACCOUNT_SID/Messages.json",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendBody": true,
+        "contentType": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "From",
+              "value": "whatsapp:+14155238886"
+            },
+            {
+              "name": "To",
+              "value": "=whatsapp:{{ $json.phone }}"
+            },
+            {
+              "name": "MediaUrl",
+              "value": "={{ $json.videoUrl }}"
+            },
+            {
+              "name": "Body",
+              "value": "🎬 Here's your generated video!"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "a1b2c3d4-0008-4000-8000-000000000008",
+      "name": "Send WhatsApp via Twilio",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [320, 112],
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "PLACEHOLDER_TWILIO_CRED_ID",
+          "name": "Twilio API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": {
+          "status": "success",
+          "message": "Video generated and sent to WhatsApp"
+        },
+        "options": {}
+      },
+      "id": "a1b2c3d4-0009-4000-8000-000000000009",
+      "name": "Success Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [544, 112]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Video Request Webhook": {
+      "main": [
+        [
+          {
+            "node": "Validate Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Request": {
+      "main": [
+        [
+          {
+            "node": "Submit to HF Space",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Invalid Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Submit to HF Space": {
+      "main": [
+        [
+          {
+            "node": "Wait For Processing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait For Processing": {
+      "main": [
+        [
+          {
+            "node": "Get Video Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Video Result": {
+      "main": [
+        [
+          {
+            "node": "Extract Video URL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Video URL": {
+      "main": [
+        [
+          {
+            "node": "Send WhatsApp via Twilio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send WhatsApp via Twilio": {
+      "main": [
+        [
+          {
+            "node": "Success Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "0",
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": []
+}

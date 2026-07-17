@@ -1,5 +1,5 @@
 {
-  "name": "AI-Powered Recruitment Pipeline",
+  "name": "AI-Powered Recruitment Pipeline (Gemini v2)",
   "nodes": [
     {
       "parameters": {
@@ -11,147 +11,169 @@
       "id": "94035ccb-61fd-4264-9bfa-f294e28397e4",
       "name": "New Application Webhook",
       "type": "n8n-nodes-base.webhook",
-      "typeVersion": 1,
-      "position": [
-        -976,
-        208
-      ],
+      "typeVersion": 2,
+      "position": [-976, 208],
       "webhookId": "5ba05d5f-c45b-4578-b0a9-6b64a8907415"
     },
     {
       "parameters": {
         "conditions": {
-          "string": [
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
             {
-              "value1": "={{ $json.body.name }}",
-              "operation": "isNotEmpty"
+              "id": "a1000000-0000-0000-0000-000000000001",
+              "leftValue": "={{ $json.body.name }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
             },
             {
-              "value1": "={{ $json.body.email }}",
-              "operation": "isNotEmpty"
+              "id": "a1000000-0000-0000-0000-000000000002",
+              "leftValue": "={{ $json.body.email }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
             },
             {
-              "value1": "={{ $json.body.role }}",
-              "operation": "isNotEmpty"
+              "id": "a1000000-0000-0000-0000-000000000003",
+              "leftValue": "={{ $json.body.role }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
             },
             {
-              "value1": "={{ $json.body.cv_text }}",
-              "operation": "isNotEmpty"
+              "id": "a1000000-0000-0000-0000-000000000004",
+              "leftValue": "={{ $json.body.cv_text }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
             }
-          ]
-        }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
       },
       "id": "737f03e8-a534-48d0-9c90-f2ce87888266",
       "name": "Validate Application",
       "type": "n8n-nodes-base.if",
-      "typeVersion": 1,
-      "position": [
-        -768,
-        208
-      ]
+      "typeVersion": 2.2,
+      "position": [-768, 208]
     },
     {
       "parameters": {
         "respondWith": "json",
-        "responseBody": {
-          "status": "error",
-          "message": "Missing required fields"
-        },
+        "responseBody": "={\n  \"status\": \"error\",\n  \"message\": \"Missing required fields\"\n}",
         "options": {}
       },
       "id": "d43a23e5-844c-4fd2-b0c7-62246ed99408",
       "name": "Invalid Response",
       "type": "n8n-nodes-base.respondToWebhook",
-      "typeVersion": 1,
-      "position": [
-        -576,
-        400
-      ]
+      "typeVersion": 1.1,
+      "position": [-576, 400]
     },
     {
       "parameters": {
-        "resource": "assistant",
-        "assistantId": {
+        "modelId": {
           "__rl": true,
           "mode": "id",
-          "value": "asst_GhJx4wYat2K500z8pRqljH14"
+          "value": "models/gemini-flash-lite-latest"
         },
-        "prompt": "define",
-        "text": "=You are a recruiter AI. Evaluate this candidate.\\n\\nROLE: {{ $json.body.role }}\\n\\nCV:\\n<<<CV>>>\\n{{ $json.body.cv_text }}\\n<<<END>>>\\n\\nReturn ONLY JSON:\\n{\\n  \\\"score\\\": number,\\n  \\\"recommendation\\\": \\\"SHORTLIST\\\" | \\\"REJECT\\\",\\n  \\\"strengths\\\": [],\\n  \\\"gaps\\\": [],\\n  \\\"summary\\\": \\\"\\\"\\n}",
+        "messages": {
+          "values": [
+            {
+              "content": "=You are a recruiter AI. Evaluate this candidate.\n\nROLE: {{ $('New Application Webhook').item.json.body.role }}\n\nCV:\n<<<CV>>>\n{{ $('New Application Webhook').item.json.body.cv_text }}\n<<<END>>>\n\nReturn ONLY JSON (no markdown, no backticks):\n{\n  \"score\": number,\n  \"recommendation\": \"SHORTLIST\" | \"REJECT\",\n  \"strengths\": [],\n  \"gaps\": [],\n  \"summary\": \"\"\n}"
+            }
+          ]
+        },
+        "simplify": true,
+        "jsonOutput": true,
         "options": {}
       },
       "id": "cf677ce8-72de-4153-90fe-147c9fd42b00",
       "name": "AI CV Screener",
-      "type": "@n8n/n8n-nodes-langchain.openAi",
-      "typeVersion": 1,
-      "position": [
-        -576,
-        112
-      ],
-      "credentials": {
-        "openAiApi": {
-          "id": "f6vcrfDmoTvHPNRH",
-          "name": "OpenAI account"
-        }
-      }
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1.2,
+      "position": [-576, 112]
     },
     {
       "parameters": {
-        "jsCode": "const raw = $input.first().json.message?.content || '';\n\nconst cleaned = raw.replace(/```json/g, '').replace(/```/g, '').trim();\n\nlet ai;\ntry {\n  ai = JSON.parse(cleaned);\n} catch (e) {\n  throw new Error('Invalid AI JSON: ' + cleaned);\n}\n\nreturn [{ json: { ...ai, candidate: $('New Application Webhook').first().json } }];"
+        "jsCode": "const j = $input.first().json;\n\n// Grab the model text/object from whichever shape the Gemini node emitted\nlet raw = j.content?.parts?.[0]?.text\n  ?? j.candidates?.[0]?.content?.parts?.[0]?.text\n  ?? j.content\n  ?? j.text\n  ?? j.message?.content\n  ?? '';\n\nlet ai;\nif (typeof raw === 'object' && raw !== null && !Array.isArray(raw)) {\n  // jsonOutput mode may return an already-parsed object\n  ai = raw.parts?.[0]?.text ? null : raw;\n}\n\nif (!ai) {\n  if (typeof raw !== 'string') raw = JSON.stringify(raw);\n  const cleaned = raw.replace(/```json/g, '').replace(/```/g, '').trim();\n  try {\n    ai = JSON.parse(cleaned);\n  } catch (e) {\n    throw new Error('Invalid AI JSON: ' + cleaned);\n  }\n}\n\nif (!ai.recommendation) {\n  throw new Error('AI response missing recommendation field: ' + JSON.stringify(ai));\n}\n\nreturn [{ json: { ...ai, candidate: $('New Application Webhook').first().json.body } }];"
       },
       "id": "2c1e6373-5f87-48f4-bbd4-abfb4111d1b5",
       "name": "Parse AI Response",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [
-        -304,
-        112
-      ]
+      "position": [-304, 112]
     },
     {
       "parameters": {
         "conditions": {
-          "string": [
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
             {
-              "value1": "={{ $json.recommendation }}",
-              "operation": "equals",
-              "value2": "SHORTLIST"
+              "id": "b2000000-0000-0000-0000-000000000001",
+              "leftValue": "={{ $json.recommendation }}",
+              "rightValue": "SHORTLIST",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
             }
-          ]
-        }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
       },
       "id": "d263786c-20a2-4753-9931-66f3fa9438a9",
       "name": "Shortlist Decision",
       "type": "n8n-nodes-base.if",
-      "typeVersion": 1,
-      "position": [
-        -128,
-        112
-      ]
+      "typeVersion": 2.2,
+      "position": [-128, 112]
     },
     {
       "parameters": {
-        "calendar": "primary",
+        "calendar": {
+          "__rl": true,
+          "mode": "list",
+          "value": "primary"
+        },
         "start": "={{ $now.plus(2, 'days').set({ hour: 10, minute: 0 }).toISO() }}",
         "end": "={{ $now.plus(2, 'days').set({ hour: 11, minute: 0 }).toISO() }}",
         "additionalFields": {
           "attendees": [
-            {
-              "email": "={{ $json.candidate.email }}"
-            }
+            "={{ $json.candidate.email }}"
           ],
-          "description": "Score: {{ $json.score }}\n\n{{ $json.summary }}",
-          "summary": "Interview: {{ $json.candidate.name }}"
+          "description": "=Score: {{ $json.score }}\n\n{{ $json.summary }}",
+          "summary": "=Interview: {{ $json.candidate.name }}"
         }
       },
       "id": "c0c59fdb-fb7e-4390-9943-083153ae353e",
       "name": "Schedule Interview",
       "type": "n8n-nodes-base.googleCalendar",
-      "typeVersion": 1,
-      "position": [
-        80,
-        -48
-      ],
+      "typeVersion": 1.3,
+      "position": [80, -48],
       "credentials": {
         "googleCalendarOAuth2Api": {
           "id": "YLCP4hRm2JbudU6C",
@@ -162,18 +184,15 @@
     {
       "parameters": {
         "sendTo": "={{ $json.candidate.email }}",
-        "subject": "Interview Invitation - {{ $json.candidate.role }}",
-        "message": "<p>Hi {{ $json.candidate.name }}, you are shortlisted.</p>",
+        "subject": "=Interview Invitation - {{ $json.candidate.role }}",
+        "message": "=<p>Hi {{ $json.candidate.name }},</p><p>Great news - you have been shortlisted for the <b>{{ $json.candidate.role }}</b> position. Our team will be in touch with interview details shortly.</p><p>Best regards,<br/>Recruitment Team</p>",
         "options": {}
       },
       "id": "83a4eb72-3b5e-4413-b49a-d569dd681917",
       "name": "Send Interview Email",
       "type": "n8n-nodes-base.gmail",
-      "typeVersion": 2,
-      "position": [
-        288,
-        128
-      ],
+      "typeVersion": 2.1,
+      "position": [288, 128],
       "webhookId": "3f1168a7-1b68-41af-ab72-41ea2c60ac8b",
       "credentials": {
         "gmailOAuth2": {
@@ -200,69 +219,19 @@
         "columns": {
           "mappingMode": "defineBelow",
           "value": {
-            "Name": "=={{ $json.candidate.name }}",
-            "Email": "=={{ $json.candidate.email }}",
-            "Role": "=={{ $json.candidate.role }}",
-            "Score": "=={{ $json.score }}",
-            "Status": "=={{ \"Shortlisted\" }}"
+            "Name": "={{ $json.candidate.name }}",
+            "Email": "={{ $json.candidate.email }}",
+            "Role": "={{ $json.candidate.role }}",
+            "Score": "={{ $json.score }}",
+            "Status": "Shortlisted"
           },
           "matchingColumns": [],
           "schema": [
-            {
-              "id": "Name",
-              "displayName": "Name",
-              "required": false,
-              "defaultMatch": false,
-              "canBeUsedToMatch": true,
-              "display": true,
-              "type": "string",
-              "readOnly": false,
-              "removed": false
-            },
-            {
-              "id": "Email",
-              "displayName": "Email",
-              "required": false,
-              "defaultMatch": false,
-              "canBeUsedToMatch": true,
-              "display": true,
-              "type": "string",
-              "readOnly": false,
-              "removed": false
-            },
-            {
-              "id": "Role",
-              "displayName": "Role",
-              "required": false,
-              "defaultMatch": false,
-              "canBeUsedToMatch": true,
-              "display": true,
-              "type": "string",
-              "readOnly": false,
-              "removed": false
-            },
-            {
-              "id": "Score",
-              "displayName": "Score",
-              "required": false,
-              "defaultMatch": false,
-              "canBeUsedToMatch": true,
-              "display": true,
-              "type": "number",
-              "readOnly": false,
-              "removed": false
-            },
-            {
-              "id": "Status",
-              "displayName": "Status",
-              "required": false,
-              "defaultMatch": false,
-              "canBeUsedToMatch": true,
-              "display": true,
-              "type": "string",
-              "readOnly": false,
-              "removed": false
-            }
+            { "id": "Name", "displayName": "Name", "required": false, "defaultMatch": false, "canBeUsedToMatch": true, "display": true, "type": "string", "readOnly": false, "removed": false },
+            { "id": "Email", "displayName": "Email", "required": false, "defaultMatch": false, "canBeUsedToMatch": true, "display": true, "type": "string", "readOnly": false, "removed": false },
+            { "id": "Role", "displayName": "Role", "required": false, "defaultMatch": false, "canBeUsedToMatch": true, "display": true, "type": "string", "readOnly": false, "removed": false },
+            { "id": "Score", "displayName": "Score", "required": false, "defaultMatch": false, "canBeUsedToMatch": true, "display": true, "type": "number", "readOnly": false, "removed": false },
+            { "id": "Status", "displayName": "Status", "required": false, "defaultMatch": false, "canBeUsedToMatch": true, "display": true, "type": "string", "readOnly": false, "removed": false }
           ],
           "attemptToConvertTypes": false,
           "convertFieldsToString": false
@@ -272,11 +241,8 @@
       "id": "d067617f-af45-4259-b176-f23aa2974622",
       "name": "Save Shortlisted",
       "type": "n8n-nodes-base.airtable",
-      "typeVersion": 2,
-      "position": [
-        432,
-        -48
-      ],
+      "typeVersion": 2.1,
+      "position": [432, -48],
       "credentials": {
         "airtableTokenApi": {
           "id": "BAK2p9y6t84vdbyW",
@@ -293,17 +259,14 @@
           "mode": "list",
           "value": ""
         },
-        "text": "✅ *Shortlisted Candidate*\n\nName: {{ $json.candidate.name }}\nRole: {{ $json.candidate.role }}\nScore: {{ $json.score }}",
+        "text": "=✅ *Shortlisted Candidate*\n\nName: {{ $json.candidate.name }}\nRole: {{ $json.candidate.role }}\nScore: {{ $json.score }}",
         "otherOptions": {}
       },
       "id": "12578808-2566-48de-a4ef-370f19389764",
       "name": "Notify Slack",
       "type": "n8n-nodes-base.slack",
-      "typeVersion": 2,
-      "position": [
-        656,
-        144
-      ],
+      "typeVersion": 2.2,
+      "position": [656, 144],
       "webhookId": "db38a091-07a3-416f-a50d-1cd293da9a42",
       "credentials": {
         "slackOAuth2Api": {
@@ -316,17 +279,14 @@
       "parameters": {
         "sendTo": "={{ $json.candidate.email }}",
         "subject": "Application Update",
-        "message": "<p>Dear {{ $json.candidate.name }}, unfortunately not selected.</p>",
+        "message": "=<p>Dear {{ $json.candidate.name }},</p><p>Thank you for applying for the <b>{{ $json.candidate.role }}</b> position. After careful review, we will not be moving forward with your application at this time.</p><p>We wish you the best in your job search.</p><p>Regards,<br/>Recruitment Team</p>",
         "options": {}
       },
       "id": "92195695-0885-4229-a78f-2ee08121a30d",
       "name": "Send Rejection Email",
       "type": "n8n-nodes-base.gmail",
-      "typeVersion": 2,
-      "position": [
-        32,
-        304
-      ],
+      "typeVersion": 2.1,
+      "position": [32, 304],
       "webhookId": "bea3cc5c-a8ea-4763-81c9-ac8c62ee7762",
       "credentials": {
         "gmailOAuth2": {
@@ -353,69 +313,19 @@
         "columns": {
           "mappingMode": "defineBelow",
           "value": {
-            "Name": "=={{ $json.candidate.name }}",
-            "Email": "=={{ $json.candidate.email }}",
-            "Role": "=={{ $json.candidate.role }}",
-            "Score": "=={{ $json.score }}",
-            "Status": "=={{ \"Rejected\" }}"
+            "Name": "={{ $json.candidate.name }}",
+            "Email": "={{ $json.candidate.email }}",
+            "Role": "={{ $json.candidate.role }}",
+            "Score": "={{ $json.score }}",
+            "Status": "Rejected"
           },
           "matchingColumns": [],
           "schema": [
-            {
-              "id": "Name",
-              "displayName": "Name",
-              "required": false,
-              "defaultMatch": false,
-              "canBeUsedToMatch": true,
-              "display": true,
-              "type": "string",
-              "readOnly": false,
-              "removed": false
-            },
-            {
-              "id": "Email",
-              "displayName": "Email",
-              "required": false,
-              "defaultMatch": false,
-              "canBeUsedToMatch": true,
-              "display": true,
-              "type": "string",
-              "readOnly": false,
-              "removed": false
-            },
-            {
-              "id": "Role",
-              "displayName": "Role",
-              "required": false,
-              "defaultMatch": false,
-              "canBeUsedToMatch": true,
-              "display": true,
-              "type": "string",
-              "readOnly": false,
-              "removed": false
-            },
-            {
-              "id": "Score",
-              "displayName": "Score",
-              "required": false,
-              "defaultMatch": false,
-              "canBeUsedToMatch": true,
-              "display": true,
-              "type": "number",
-              "readOnly": false,
-              "removed": false
-            },
-            {
-              "id": "Status",
-              "displayName": "Status",
-              "required": false,
-              "defaultMatch": false,
-              "canBeUsedToMatch": true,
-              "display": true,
-              "type": "string",
-              "readOnly": false,
-              "removed": false
-            }
+            { "id": "Name", "displayName": "Name", "required": false, "defaultMatch": false, "canBeUsedToMatch": true, "display": true, "type": "string", "readOnly": false, "removed": false },
+            { "id": "Email", "displayName": "Email", "required": false, "defaultMatch": false, "canBeUsedToMatch": true, "display": true, "type": "string", "readOnly": false, "removed": false },
+            { "id": "Role", "displayName": "Role", "required": false, "defaultMatch": false, "canBeUsedToMatch": true, "display": true, "type": "string", "readOnly": false, "removed": false },
+            { "id": "Score", "displayName": "Score", "required": false, "defaultMatch": false, "canBeUsedToMatch": true, "display": true, "type": "number", "readOnly": false, "removed": false },
+            { "id": "Status", "displayName": "Status", "required": false, "defaultMatch": false, "canBeUsedToMatch": true, "display": true, "type": "string", "readOnly": false, "removed": false }
           ],
           "attemptToConvertTypes": false,
           "convertFieldsToString": false
@@ -425,11 +335,8 @@
       "id": "ee42e71f-8aea-46b8-9bab-32f09c30017d",
       "name": "Save Rejected",
       "type": "n8n-nodes-base.airtable",
-      "typeVersion": 2,
-      "position": [
-        240,
-        304
-      ],
+      "typeVersion": 2.1,
+      "position": [240, 304],
       "credentials": {
         "airtableTokenApi": {
           "id": "BAK2p9y6t84vdbyW",
@@ -440,20 +347,26 @@
     {
       "parameters": {
         "respondWith": "json",
-        "responseBody": {
-          "status": "success",
-          "message": "Application processed"
-        },
+        "responseBody": "={\n  \"status\": \"success\",\n  \"message\": \"Application processed\",\n  \"recommendation\": \"{{ $('Parse AI Response').item.json.recommendation }}\",\n  \"score\": {{ $('Parse AI Response').item.json.score }}\n}",
         "options": {}
       },
       "id": "c098ed42-71c1-4bc3-a56a-59bda12c4c66",
       "name": "Webhook Response",
       "type": "n8n-nodes-base.respondToWebhook",
-      "typeVersion": 1,
-      "position": [
-        832,
-        208
-      ]
+      "typeVersion": 1.1,
+      "position": [832, 208]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\n  \"status\": \"success\",\n  \"message\": \"Application processed\",\n  \"recommendation\": \"REJECT\",\n  \"score\": {{ $('Parse AI Response').item.json.score }}\n}",
+        "options": {}
+      },
+      "id": "c098ed42-71c1-4bc3-a56a-59bda12c4c99",
+      "name": "Webhook Response Rejected",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [432, 304]
     }
   ],
   "pinData": {},
@@ -461,123 +374,77 @@
     "New Application Webhook": {
       "main": [
         [
-          {
-            "node": "Validate Application",
-            "type": "main",
-            "index": 0
-          },
-          {
-            "node": "Invalid Response",
-            "type": "main",
-            "index": 0
-          }
+          { "node": "Validate Application", "type": "main", "index": 0 }
         ]
       ]
     },
     "Validate Application": {
       "main": [
         [
-          {
-            "node": "AI CV Screener",
-            "type": "main",
-            "index": 0
-          }
+          { "node": "AI CV Screener", "type": "main", "index": 0 }
         ],
         [
-          {
-            "node": "Invalid Response",
-            "type": "main",
-            "index": 0
-          }
+          { "node": "Invalid Response", "type": "main", "index": 0 }
         ]
       ]
     },
     "AI CV Screener": {
       "main": [
         [
-          {
-            "node": "Parse AI Response",
-            "type": "main",
-            "index": 0
-          }
+          { "node": "Parse AI Response", "type": "main", "index": 0 }
         ]
       ]
     },
     "Parse AI Response": {
       "main": [
         [
-          {
-            "node": "Shortlist Decision",
-            "type": "main",
-            "index": 0
-          }
+          { "node": "Shortlist Decision", "type": "main", "index": 0 }
         ]
       ]
     },
     "Shortlist Decision": {
       "main": [
         [
-          {
-            "node": "Schedule Interview",
-            "type": "main",
-            "index": 0
-          },
-          {
-            "node": "Send Interview Email",
-            "type": "main",
-            "index": 0
-          }
+          { "node": "Schedule Interview", "type": "main", "index": 0 },
+          { "node": "Send Interview Email", "type": "main", "index": 0 }
         ],
         [
-          {
-            "node": "Send Rejection Email",
-            "type": "main",
-            "index": 0
-          }
+          { "node": "Send Rejection Email", "type": "main", "index": 0 }
         ]
       ]
     },
     "Schedule Interview": {
       "main": [
         [
-          {
-            "node": "Save Shortlisted",
-            "type": "main",
-            "index": 0
-          }
+          { "node": "Save Shortlisted", "type": "main", "index": 0 }
         ]
       ]
     },
     "Send Interview Email": {
       "main": [
         [
-          {
-            "node": "Notify Slack",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Send Rejection Email": {
-      "main": [
-        [
-          {
-            "node": "Save Rejected",
-            "type": "main",
-            "index": 0
-          }
+          { "node": "Notify Slack", "type": "main", "index": 0 }
         ]
       ]
     },
     "Notify Slack": {
       "main": [
         [
-          {
-            "node": "Webhook Response",
-            "type": "main",
-            "index": 0
-          }
+          { "node": "Webhook Response", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Send Rejection Email": {
+      "main": [
+        [
+          { "node": "Save Rejected", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Save Rejected": {
+      "main": [
+        [
+          { "node": "Webhook Response Rejected", "type": "main", "index": 0 }
         ]
       ]
     }
@@ -586,12 +453,5 @@
   "settings": {
     "executionOrder": "v1",
     "binaryMode": "separate"
-  },
-  "versionId": "3b3eceab-a1f0-4d52-826a-358883a99857",
-  "meta": {
-    "templateCredsSetupCompleted": true,
-    "instanceId": "e925f5c15cda07466ef3268a5598430e3b166564e944e0ade65e089921f1eebd"
-  },
-  "id": "6tWOEv6hk8fV3OAs",
-  "tags": []
+  }
 }
